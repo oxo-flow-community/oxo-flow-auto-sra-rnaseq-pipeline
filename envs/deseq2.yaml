@@ -1,0 +1,14 @@
+# Upstream Dockerfile r432 env (r-base 4.3.2, DESeq2 1.42.0, ashr 2.2.63),
+# with unpinned r-data.table resolved from conda-forge on 2026-08-15.
+# python 3.11 is added for the on_success email hook (upstream onsuccess
+# runs in the base python env).
+name: deseq2
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - r-base =4.3.2
+  - bioconductor-deseq2 =1.42.0
+  - r-ashr =2.2.63
+  - r-data.table =1.18.4
+  - python =3.11

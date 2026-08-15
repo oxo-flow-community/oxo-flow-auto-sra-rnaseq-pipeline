@@ -1,0 +1,10 @@
+# Upstream envs/align.yaml, with unpinned tools resolved from bioconda
+# on 2026-08-15 (see README fidelity table).
+name: align
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - samtools =1.24
+  - star =2.7.1a
+  - deeptools =3.5.6

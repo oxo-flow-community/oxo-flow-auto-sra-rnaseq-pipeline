@@ -1,0 +1,12 @@
+# Upstream envs/download.yaml (sra-tools 3.1.1) plus python/pandas for the
+# dump script: upstream runs the rule command in this env while its input
+# function runs in the base snakemake env (python 3.11 + pandas); oxo-flow
+# runs one environment per rule, so the script deps join this env.
+name: download
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - sra-tools =3.1.1
+  - python =3.11
+  - pandas =3.0.5

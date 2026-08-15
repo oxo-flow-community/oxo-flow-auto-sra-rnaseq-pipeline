@@ -1,0 +1,10 @@
+# Port of the upstream base snakemake env's python part (python 3.11 +
+# pandas, per upstream Dockerfile `pip install snakemake==8.16 pandas`).
+# snakemake itself is not needed — oxo-flow is the orchestrator.
+name: count
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python =3.11
+  - pandas =3.0.5
