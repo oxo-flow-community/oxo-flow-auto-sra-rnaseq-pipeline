@@ -44,6 +44,10 @@ def main() -> None:
         for path in inputs:
             with open(path, "rb") as fh:
                 out.write(fh.read())
+            # upstream temp(): the per-SRR dump FASTQs are deleted once the
+            # merge consumes them (they are only read here; keeping them
+            # doubles the pipeline's peak disk by the raw read size)
+            os.remove(path)
 
 
 if __name__ == "__main__":
