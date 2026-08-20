@@ -150,7 +150,6 @@ description = "Trim and filter paired reads with fastp (upstream data_clean_pair
 input = ["00_raw_data/{sample}_R1.fq", "00_raw_data/{sample}_R2.fq"]
 output = ["01_clean_data/{sample}_R1.fq", "01_clean_data/{sample}_R2.fq"]
 temp_output = ["01_clean_data/{sample}_R1.fq", "01_clean_data/{sample}_R2.fq"]
-temp_output = ["01_clean_data/{sample}_R1.fq", "01_clean_data/{sample}_R2.fq"]
 log = "log/{sample}_fastp.log"
 pre_exec = "mkdir -p log"
 environment = { conda = "envs/preprocess.yaml" }
