@@ -7,6 +7,7 @@ Concatenates the per-SRR FASTQ files of one sample in metadata order
 """
 
 import argparse
+import time
 import os
 import sys
 
@@ -37,8 +38,18 @@ def main() -> None:
 
     missing = [f for f in inputs if not os.path.exists(f)]
     if missing:
-        print(f"error: missing FASTQ file(s): {', '.join(missing)}", file=sys.stderr)
-        sys.exit(1)
+        # The dump rules run concurrently with this merge (engine-level
+        # depends_on would serialize ALL dump instances); poll until our
+        # per-sample reads appear, then merge and delete them.
+        print(f"waiting for FASTQ file(s): {', '.join(missing)}", file=sys.stderr)
+        waited = 0
+        while waited < 5400 and any(not os.path.exists(x) for x in inputs):
+            time.sleep(30)
+            waited += 30
+        missing = [x for x in inputs if not os.path.exists(x)]
+        if missing:
+            print(f"error: FASTQ file(s) never appeared: {', '.join(missing)}", file=sys.stderr)
+            sys.exit(1)
 
     with open(args.output, "wb") as out:
         for path in inputs:
