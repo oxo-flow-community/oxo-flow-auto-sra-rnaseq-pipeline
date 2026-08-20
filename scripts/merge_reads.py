@@ -9,6 +9,7 @@ Concatenates the per-SRR FASTQ files of one sample in metadata order
 import argparse
 import time
 import os
+import shutil
 import sys
 
 import pandas as pd
@@ -54,7 +55,10 @@ def main() -> None:
     with open(args.output, "wb") as out:
         for path in inputs:
             with open(path, "rb") as fh:
-                out.write(fh.read())
+                # stream in chunks — fh.read() loads a whole ~13GB FASTQ into
+                # memory (MemoryError on a 3.7GB box; upstream shells cat the
+                # files, which streams)
+                shutil.copyfileobj(fh, out, length=64 * 1024 * 1024)
             # upstream temp(): the per-SRR dump FASTQs are deleted once the
             # merge consumes them (they are only read here; keeping them
             # doubles the pipeline's peak disk by the raw read size)
