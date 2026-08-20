@@ -10,5 +10,5 @@ dependencies:
   - r-base =4.3.2
   - bioconductor-deseq2 =1.42.0
   - r-ashr =2.2.63
-  - r-data.table =1.18.4
+  - r-data.table =1.17.8  # r43 build — 1.18.4 requires r-base >=4.4 and cannot solve with the pinned r-base 4.3.2
   - python =3.11
