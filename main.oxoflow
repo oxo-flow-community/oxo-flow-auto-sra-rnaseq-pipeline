@@ -104,11 +104,11 @@ environment = { conda = "envs/count.yaml" }
 localrule = true
 
 [[rules]]
-name = "data_conversion_pair"
-description = "Convert .sra archives to paired FASTQ with fasterq-dump (upstream data_conversion_pair; per-SRR jobs run inside the script with a worker pool of 2, matching run.py --resources limit_dump=2)"
+name = "sra_dump"
+description = "Convert one sample's .sra archives to paired FASTQ with fasterq-dump (upstream data_conversion_pair; one rule per sample so the merge consumes and deletes the reads immediately — bundling all dumps in one rule made the whole uncompressed read set coexist on disk and tripped fasterq-dump's disk-limit check on small volumes)"
 input = ["{config.metadata}"]
-output = []
-script = "scripts/dump_sra.py --metadata {config.metadata} --separator {config.srr_separator}"
+output = ["sra/{sample}.dumped"]
+script = "scripts/dump_sra.py --metadata {config.metadata} --separator {config.srr_separator} --sample {sample}"
 environment = { conda = "envs/download.yaml" }
 depends_on = ["get_sra"]
 localrule = true
@@ -122,7 +122,7 @@ output = ["00_raw_data/{sample}_R1.fq"]
 temp_output = ["00_raw_data/{sample}_R1.fq"]
 script = "scripts/merge_reads.py --metadata {config.metadata} --separator {config.srr_separator} --sample {sample} --read 1 --output {output[0]}"
 environment = { conda = "envs/count.yaml" }
-depends_on = ["data_conversion_pair"]
+depends_on = ["sra_dump"]
 localrule = true
 priority = 20
 
@@ -137,7 +137,7 @@ output = ["00_raw_data/{sample}_R2.fq"]
 temp_output = ["00_raw_data/{sample}_R2.fq"]
 script = "scripts/merge_reads.py --metadata {config.metadata} --separator {config.srr_separator} --sample {sample} --read 2 --output {output[0]}"
 environment = { conda = "envs/count.yaml" }
-depends_on = ["data_conversion_pair"]
+depends_on = ["sra_dump"]
 localrule = true
 priority = 20
 

@@ -21,6 +21,8 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--metadata", required=True)
     p.add_argument("--separator", default=",")
+    p.add_argument("--sample", default=None,
+                   help="dump only the SRRs of this GSM sample (per-sample rule)")
     return p.parse_args()
 
 
@@ -32,6 +34,8 @@ def dump(srr: str) -> None:
 def main() -> None:
     args = parse_args()
     df = pd.read_csv(args.metadata, sep="\t")
+    if args.sample is not None:
+        df = df[df["GSM"] == args.sample]
 
     srrs: list[str] = []
     for value in df["SRR"].to_list():
@@ -39,6 +43,12 @@ def main() -> None:
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_DUMP_WORKERS) as pool:
         list(pool.map(dump, srrs))
+
+    # per-sample completion marker (declared rule output; also drives the
+    # engine's per-sample fan-out of the dump rule)
+    if args.sample is not None:
+        with open(os.path.join("sra", args.sample + ".dumped"), "w") as fh:
+            fh.write("ok\n")
 
 
 if __name__ == "__main__":
