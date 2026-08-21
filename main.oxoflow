@@ -13,8 +13,9 @@
 #   script rules: oxo-flow fans rules out over {sample}/{pair_id} only, while
 #   the upstream {sra} wildcard values come from the metadata TSV at load
 #   time. The ported scripts iterate the same metadata rows and run the
-#   identical commands (fasterq-dump per SRR with a worker pool of 2,
-#   matching the upstream run.py --resources limit_dump=2 cap).
+#   identical commands (fasterq-dump per SRR); the upstream run.py
+#   --resources limit_dump=2 cap is kept as a resource group on the
+#   per-sample dump rules.
 # - Upstream input functions (get_merged_input_data_R1/R2) and run: blocks
 #   (get_sra, combine_count) read the metadata with pandas; the port moves
 #   them to scripts/ with identical logic (scripts read {config.metadata}
@@ -87,8 +88,13 @@ samples = [
 
 # Upstream run.py caps concurrent merges at 2 (--resources limit_merge=2);
 # each merge rule claims 1 unit (upstream resources: limit_merge = 1).
+# Dumps are capped at 2 the same way (upstream limit_dump=2) — the
+# per-sample dump rules would otherwise all run at once and the six
+# uncompressed FASTQ sets (~27G per sample) coexist on disk, tripping
+# fasterq-dump's disk-limit check on small volumes (live: v18).
 [resource_groups]
 limit_merge = { max = 2 }
+limit_dump = { max = 2 }
 
 # ---------------------------------------------------------------------------
 # SRA access and conversion
@@ -113,6 +119,9 @@ environment = { conda = "envs/download.yaml" }
 depends_on = ["get_sra"]
 localrule = true
 priority = 10
+
+[rules.resources]
+groups = { limit_dump = 1 }
 
 [[rules]]
 name = "merge_R1_data"
