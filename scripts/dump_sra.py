@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Port of the upstream data_conversion_pair rule.
 
-Runs `fasterq-dump sra/<SRR> -O sra` for every SRR in the metadata.
+Runs `fasterq-dump sra/<SRR>/<SRR>.sra -O sra` for every SRR in the metadata.
 Upstream schedules one job per SRR with a global cap of 2 concurrent dumps
 (run.py --resources limit_dump=2); the port replicates the cap with an
 internal worker pool of 2 and the identical command per SRR.
@@ -28,8 +28,25 @@ def parse_args() -> argparse.Namespace:
 
 
 def dump(srr: str) -> None:
-    # Upstream shell: fasterq-dump sra/{wildcards.sra} -O sra
-    subprocess.run(["fasterq-dump", f"sra/{srr}", "-O", "sra"], check=True)
+    # Upstream shell: fasterq-dump sra/{wildcards.sra} -O sra. {wildcards.sra}
+    # is the .sra FILE — get_sra stores each download under
+    # sra/<SRR>/<SRR>.sra. (Live: passing the sra/<SRR> directory made
+    # fasterq-dump exit 0 without writing anything; the marker was then
+    # written and the merge polled for 90 minutes for fastqs that never
+    # appeared — v17 run end exit=1.)
+    subprocess.run(
+        ["fasterq-dump", f"sra/{srr}/{srr}.sra", "-O", "sra"], check=True
+    )
+
+
+def verify(srr: str) -> None:
+    """fasterq-dump can exit 0 without producing output (see above); make
+    that a hard failure instead of a silent one."""
+    for read in (1, 2):
+        if not os.path.exists(f"sra/{srr}_{read}.fastq"):
+            raise RuntimeError(
+                f"fasterq-dump exited 0 but sra/{srr}_{read}.fastq is missing"
+            )
 
 
 def main() -> None:
@@ -44,6 +61,9 @@ def main() -> None:
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_DUMP_WORKERS) as pool:
         list(pool.map(dump, srrs))
+
+    for srr in srrs:
+        verify(srr)
 
     # per-sample completion marker (declared rule output; also drives the
     # engine's per-sample fan-out of the dump rule)
