@@ -118,7 +118,9 @@ script = "scripts/dump_sra.py --metadata {config.metadata} --separator {config.s
 environment = { conda = "envs/download.yaml" }
 depends_on = ["get_sra"]
 localrule = true
-priority = 10
+# schedule the dumps before the merges (p20): the producers must start
+# first so the interleaved consume-and-delete has something to consume
+priority = 25
 
 [rules.resources]
 groups = { limit_dump = 1 }
