@@ -133,7 +133,13 @@ output = ["00_raw_data/{sample}_R1.fq"]
 temp_output = ["00_raw_data/{sample}_R1.fq"]
 script = "scripts/merge_reads.py --metadata {config.metadata} --separator {config.srr_separator} --sample {sample} --read 1 --output {output[0]}"
 environment = { conda = "envs/count.yaml" }
-depends_on = ["get_sra"]
+# The fastqs are discovered INSIDE the script via the metadata (no
+# static input edge to sra_dump) — without this the merge schedules as
+# soon as get_sra lands, holds limit_merge while polling 90 min, and
+# the dumps starve behind it in the FIFO queue (live: 5400s waits,
+# merge timeout failures). depends_on expands to all sra_dump
+# instances, restoring the real producer->consumer order.
+depends_on = ["get_sra", "sra_dump"]
 localrule = true
 priority = 20
 
@@ -148,7 +154,7 @@ output = ["00_raw_data/{sample}_R2.fq"]
 temp_output = ["00_raw_data/{sample}_R2.fq"]
 script = "scripts/merge_reads.py --metadata {config.metadata} --separator {config.srr_separator} --sample {sample} --read 2 --output {output[0]}"
 environment = { conda = "envs/count.yaml" }
-depends_on = ["get_sra"]
+depends_on = ["get_sra", "sra_dump"]
 localrule = true
 priority = 20
 
