@@ -95,6 +95,9 @@ samples = [
 [resource_groups]
 limit_merge = { max = 2 }
 limit_dump = { max = 2 }
+# Serialized STAR: 3 concurrent x 20 threads oversubscribes a shared
+# 64-core box and the STARs thrash each other (live observation).
+limit_align = { max = 1 }
 
 # ---------------------------------------------------------------------------
 # SRA access and conversion
@@ -197,13 +200,20 @@ log = "log/{sample}_Log.final.out"
 benchmark = "benchmark/STAR/{sample}.tsv"
 pre_exec = "mkdir -p log benchmark/STAR"
 environment = { conda = "envs/align.yaml" }
-# Wall-clock bound: a resource-starved STAR (shared hosts) would
-# otherwise spin for days at ~2% progress with no signal (live: 20h
-# stall on a contended box). The engine kills + marks the rule failed
-# at the bound; required semantics then decide the run. 2h is ~2-4x
-# the full-sample alignment on a free 20-thread machine.
+# Wall-clock tripwire: a stalled STAR spins with no signal (live: 20h
+# at ~2%). NOTE this is NOT stall detection — a healthy-but-slow run
+# also dies at the bound; the engine's progress-based stall detection
+# is the right long-term mechanism (filed upstream). 2h is ~2-4x the
+# full-sample alignment on a free 20-thread machine.
 time_limit = "2h"
 priority = 40
+
+# ONE align at a time: 3 concurrent STARs x 20 threads = 60/64 cores
+# on a shared box, and they thrash each other plus the NFS BAM sort
+# (live: the top CPU consumers with no forward progress). Serialized,
+# each STAR gets its full thread claim and the box stays responsive.
+[rules.resources]
+groups = { limit_align = 1 }
 
 shell = """
 STAR \
