@@ -208,13 +208,6 @@ environment = { conda = "envs/align.yaml" }
 time_limit = "2h"
 priority = 40
 
-# ONE align at a time: 3 concurrent STARs x 20 threads = 60/64 cores
-# on a shared box, and they thrash each other plus the NFS BAM sort
-# (live: the top CPU consumers with no forward progress). Serialized,
-# each STAR gets its full thread claim and the box stays responsive.
-[rules.resources]
-groups = { limit_align = 1 }
-
 shell = """
 STAR \
 	--genomeDir {config.index} \
@@ -232,6 +225,11 @@ STAR \
 [rules.resources]
 threads = 20  # upstream star_threads = 20
 memory = "10G"  # upstream resources.mem_mb first-attempt value (10000)
+# ONE align at a time: 3 concurrent STARs x 20 threads = 60/64 cores
+# on a shared box, and they thrash each other plus the NFS BAM sort
+# (live: the top CPU consumers with no forward progress). Serialized,
+# each STAR gets its full thread claim and the box stays responsive.
+groups = { limit_align = 1 }
 
 [rules.params]
 mem_mb = 10000
