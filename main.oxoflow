@@ -117,6 +117,9 @@ output = ["sra/{sample}.dumped"]
 script = "scripts/dump_sra.py --metadata {config.metadata} --separator {config.srr_separator} --sample {sample}"
 environment = { conda = "envs/download.yaml" }
 depends_on = ["get_sra"]
+# fasterq-dump on a full sample takes ~15-30 min; the bound catches
+# stalls instead of letting them spin silently (see align_and_count).
+time_limit = "1h"
 localrule = true
 # schedule the dumps before the merges (p20): the producers must start
 # first so the interleaved consume-and-delete has something to consume
@@ -194,6 +197,12 @@ log = "log/{sample}_Log.final.out"
 benchmark = "benchmark/STAR/{sample}.tsv"
 pre_exec = "mkdir -p log benchmark/STAR"
 environment = { conda = "envs/align.yaml" }
+# Wall-clock bound: a resource-starved STAR (shared hosts) would
+# otherwise spin for days at ~2% progress with no signal (live: 20h
+# stall on a contended box). The engine kills + marks the rule failed
+# at the bound; required semantics then decide the run. 2h is ~2-4x
+# the full-sample alignment on a free 20-thread machine.
+time_limit = "2h"
 priority = 40
 
 shell = """
