@@ -203,12 +203,13 @@ benchmark = "benchmark/STAR/{sample}.tsv"
 pre_exec = "mkdir -p log benchmark/STAR"
 environment = { conda = "envs/align.yaml" }
 # Wall-clock tripwire: a stalled STAR spins with no signal (live: 20h
-# at ~2%). NOTE this is NOT stall detection — a healthy-but-slow run
-# also dies at the bound; the engine's progress-based stall detection
-# is the right long-term mechanism (filed upstream). 6h covers the
-# full-sample alignment even on a heavily shared host (~3.4M reads/h
-# measured live on a 20-thread box).
-time_limit = "6h"
+# at ~2% with the broken 2.7.1a). NOTE this is NOT stall detection —
+# a healthy-but-slow run also dies at the bound; the engine's
+# progress-based stall detection is the right long-term mechanism
+# (filed upstream). 24h: the measured ~3.4M reads/h on a shared
+# 20-thread host puts a full sample at ~10h, so the bound only trips
+# on true stalls.
+time_limit = "24h"
 priority = 40
 
 shell = """
