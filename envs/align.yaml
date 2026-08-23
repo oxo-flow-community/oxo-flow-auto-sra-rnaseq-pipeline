@@ -1,10 +1,13 @@
 # Upstream envs/align.yaml, with unpinned tools resolved from bioconda
 # on 2026-08-15 (see README fidelity table).
+# star bumped 2.7.1a -> 2.7.11b: the 2019-era binary stalls on modern
+# hosts (live: 20h spin at the thread-creation phase, zero progress)
+# and its 2.7.1a-format index is unreadable by every current STAR.
 name: align
 channels:
   - conda-forge
   - bioconda
 dependencies:
   - samtools =1.24
-  - star =2.7.1a
+  - star =2.7.11b
   - deeptools =3.5.6
