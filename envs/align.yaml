@@ -8,6 +8,8 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
-  - samtools =1.24
+  # samtools 1.24's htslib conflicts with star 2.7.11b (<1.24); 1.22 is
+  # the combo live-verified in the clindet campaign.
+  - samtools =1.22
   - star =2.7.11b
   - deeptools =3.5.6
