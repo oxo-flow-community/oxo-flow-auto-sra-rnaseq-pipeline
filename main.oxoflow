@@ -95,9 +95,11 @@ samples = [
 [resource_groups]
 limit_merge = { max = 2 }
 limit_dump = { max = 2 }
-# Serialized STAR: 3 concurrent x 20 threads oversubscribes a shared
-# 64-core box and the STARs thrash each other (live observation).
-limit_align = { max = 1 }
+# 2 concurrent STARs (40 threads): the observed "thrash" was the broken
+# 2.7.1a binary, not the concurrency; full serialization would take
+# ~60h on a shared host at the measured 3.4M reads/h. 2 keeps the box
+# responsive while parallelizing the wall-clock.
+limit_align = { max = 2 }
 
 # ---------------------------------------------------------------------------
 # SRA access and conversion
@@ -203,9 +205,10 @@ environment = { conda = "envs/align.yaml" }
 # Wall-clock tripwire: a stalled STAR spins with no signal (live: 20h
 # at ~2%). NOTE this is NOT stall detection — a healthy-but-slow run
 # also dies at the bound; the engine's progress-based stall detection
-# is the right long-term mechanism (filed upstream). 2h is ~2-4x the
-# full-sample alignment on a free 20-thread machine.
-time_limit = "2h"
+# is the right long-term mechanism (filed upstream). 6h covers the
+# full-sample alignment even on a heavily shared host (~3.4M reads/h
+# measured live on a 20-thread box).
+time_limit = "6h"
 priority = 40
 
 shell = """
