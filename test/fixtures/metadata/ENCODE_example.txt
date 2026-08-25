@@ -1,0 +1,4 @@
+Experiment_name	sample	celline	gene	group	R1_file_accession	R2_file_accession	runtype	Experiment_group	DatasetName
+ENC0001	ENCsample001	MCF7	TP53	treat	ENCFF000001	ENCFF000002	paired-ended	ENC0001	D21122
+ENC0001	ENCsample002	MCF7	TP53	control	ENCFF000003	ENCFF000004	paired-ended	ENC0001	D21122
+ENC0001	ENCsample003	MCF7	TP53	control	ENCFF000005		single-ended	ENC0001	D21122

@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
-"""Port of the upstream data_conversion_pair rule.
+"""Port of the upstream data_conversion_pair / data_conversion_single rules.
 
 Runs `fasterq-dump sra/<SRR>/<SRR>.sra -O sra` for every SRR in the metadata.
 Upstream schedules one job per SRR with a global cap of 2 concurrent dumps
 (run.py --resources limit_dump=2); the port replicates the cap with an
 internal worker pool of 2 and the identical command per SRR.
+
+fasterq-dump derives the output naming from the archive itself: paired-end
+SRA archives produce sra/<SRR>_1.fastq + _2.fastq (upstream
+data_conversion_pair outputs), single-end archives produce sra/<SRR>.fastq
+(upstream data_conversion_single output). One script rule covers both —
+the upstream needed two rules only because their DAG declared the output
+names statically.
 """
 
 import argparse
@@ -41,12 +48,17 @@ def dump(srr: str) -> None:
 
 def verify(srr: str) -> None:
     """fasterq-dump can exit 0 without producing output (see above); make
-    that a hard failure instead of a silent one."""
-    for read in (1, 2):
-        if not os.path.exists(f"sra/{srr}_{read}.fastq"):
-            raise RuntimeError(
-                f"fasterq-dump exited 0 but sra/{srr}_{read}.fastq is missing"
-            )
+    that a hard failure instead of a silent one. Accept either the paired
+    output shape (sra/{srr}_1.fastq + _2.fastq) or the single-end shape
+    (sra/{srr}.fastq), matching what the archive actually contains."""
+    single = os.path.exists(f"sra/{srr}.fastq")
+    pair_1 = os.path.exists(f"sra/{srr}_1.fastq")
+    pair_2 = os.path.exists(f"sra/{srr}_2.fastq")
+    if not (single or (pair_1 and pair_2)):
+        raise RuntimeError(
+            f"fasterq-dump exited 0 but no FASTQ output for {srr} "
+            f"(expected sra/{srr}.fastq or sra/{srr}_1.fastq + sra/{srr}_2.fastq)"
+        )
 
 
 def main() -> None:

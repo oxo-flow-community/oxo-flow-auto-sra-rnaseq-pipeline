@@ -1,0 +1,300 @@
+# oxo-flow port of xuzhougeng/auto_sra_rnaseq_pipeline @ 923b9e9
+# (ENCODE execution path, Snakefile_ENCODE).
+#
+# Upstream: https://github.com/xuzhougeng/auto_sra_rnaseq_pipeline
+#   (main HEAD, sha 923b9e98669a02d7b63ac8743e7ed960f3d0a86e)
+# ENCODE path (Snakefile_ENCODE): fastp cleaning of pre-downloaded ENCODE
+# FASTQ files -> STAR alignment + GeneCounts -> BAM index + bigWig ->
+# merged count matrix -> DESeq2 with ashr shrinkage (DESeq2_diff_encode.R)
+# -> onsuccess cleanup + optional email.
+#
+# The ENCODE metadata names the input FASTQ files per sample via the
+# R1_file_accession / R2_file_accession columns (file name != sample
+# name), which oxo-flow static inputs cannot express. The port moves the
+# fastp invocation into a per-sample script rule (scripts/clean_encode.py)
+# that runs the byte-identical upstream fastp command, mirroring how the
+# main port handles metadata-driven rules (get_sra, sra_dump, merge_reads).
+#
+# Single-end routing: upstream branches per sample on the metadata
+# `runtype` column at load time (get_raw_data); the port declares the
+# branch as sample-group metadata and gates the branch rules with
+# per-expansion `when` predicates:
+#   - [[sample_groups]] "paired" = paired-ended samples
+#     (metadata runtype = "paired-ended")
+#   - [[sample_groups]] "single" = single-ended samples
+#     (metadata runtype = "single-ended")
+# Every sample MUST be in exactly one group, matching its metadata
+# `runtype` column — clean_encode.py fails fast on a mismatch.
+#
+# Fidelity notes:
+# - Upstream data_clean_pair always indexes {input[1]} — a single-ended
+#   sample (one-file get_raw_data result) IndexErrors at DAG build time.
+#   The port fixes this by splitting the rule into data_clean_pair /
+#   data_clean_single (same fastp command, single mode without -I/-O).
+# - Upstream align_and_count declares fixed r1/r2 inputs, so the ENCODE
+#   path is effectively paired-only upstream; the port splits it into
+#   the PAIRED gated align_and_count and the SINGLE gated
+#   align_and_count_single (same STAR command, one --readFilesIn file),
+#   mirroring the main port's fix.
+# - Upstream `use_download` / `download_path` are dead code (computed,
+#   never read) — not ported.
+# - fastp_threads / star_threads config keys are baked into
+#   [rules.resources] threads (upstream defaults 8 / 20) — oxo-flow
+#   resource numbers are literals. pandas was added to envs/preprocess.yaml
+#   for the ported per-sample clean driver (upstream did the pandas work
+#   in a Snakemake input function, which oxo-flow cannot run).
+# - align_and_count memory escalation (mem_mb lambda: 10000 first attempt,
+#   60000*(attempt-1) after) is not expressible — the port pins the
+#   first-attempt value 10000 (--limitBAMsortRAM 10000000000, resources
+#   memory "10G").
+# - Snakemake workflow-level onsuccess (rmtree 02_read_align + email) is
+#   attached to the final rule DGE_analysis as on_success.
+# - Snakemake workflow-level onerror email is NOT ported: oxo-flow has
+#   per-rule on_failure hooks only, and a failure in an earlier rule never
+#   reaches the final rule's hook. The engine ships a [webhook] section
+#   with a workflow_failed event, but nothing in the engine calls it yet
+#   (dead surface in this build) — see README fidelity table.
+
+[workflow]
+name = "oxo-flow-auto-sra-rnaseq-pipeline-encode"
+version = "1.0.0"
+description = "ENCODE-style RNA-seq from pre-downloaded FASTQ files to differential expression: fastp trimming, STAR alignment with gene counts, bigWig signal tracks, merged count matrix, DESeq2 with ashr shrinkage — oxo-flow port of xuzhougeng/auto_sra_rnaseq_pipeline Snakefile_ENCODE"
+author = "oxo-flow-community"
+
+[config]
+# STAR index dir and GTF (upstream keys index / GTF).
+index = "/data/reference/genome/GRCh38/STAR"
+GTF = "/data/reference/genome/GRCh38/Homo_sapiens.GRCh38.95.sort.gtf"
+# ENCODE metadata TSV (upstream key metadata). Columns:
+#   Experiment_name  sample  celline  gene  group  R1_file_accession
+#   R2_file_accession  runtype  Experiment_group  DatasetName
+# runtype is "paired-ended" or "single-ended"; the FASTQ inputs live in
+# 00_raw_data/ as <accession>.fastq.gz (pre-downloaded).
+# The repo default points at the bundled example (placeholder accessions).
+metadata = "test/fixtures/metadata/ENCODE_example.txt"
+# DB_ID — upstream: basename(metadata).replace(".txt", "").
+db_id = "ENCODE_example"
+# Email notification (upstream onsuccess). Keep off unless SMTP is configured.
+mail = false
+sender = ""
+sender_password = ""
+mail_to = ""
+
+[defaults]
+threads = 1
+
+# Sample source: the `sample` column of the metadata file. Keep in sync
+# with {config.metadata} — upstream derives this list from the metadata at
+# load time; oxo-flow needs it declared (see README "Usage").
+#
+# Single-end routing: upstream branches per sample on the metadata
+# `runtype` column; the port declares the branch as group metadata and
+# gates the branch rules with `when = "wildcard.runtype == ..."`
+# per-expansion predicates. Every sample MUST be in exactly one of the two
+# groups, and in the group matching its metadata `runtype` column —
+# clean_encode.py fails fast on a mismatch.
+[[sample_groups]]
+name = "paired"
+samples = [
+    "ENCsample001", "ENCsample002",
+]
+metadata = { runtype = "paired-ended" }
+
+[[sample_groups]]
+name = "single"
+samples = [
+    "ENCsample003",
+]
+metadata = { runtype = "single-ended" }
+
+# Same concurrency tuning as main.oxoflow: 2 concurrent STARs (40
+# threads) — full serialization would take ~60h on a shared host at the
+# measured 3.4M reads/h, 3+ thrash each other plus the BAM sort.
+[resource_groups]
+limit_align = { max = 2 }
+
+# ---------------------------------------------------------------------------
+# Cleaning
+# ---------------------------------------------------------------------------
+
+[[rules]]
+name = "data_clean_pair"
+description = "Trim and filter paired reads with fastp (upstream data_clean_pair + get_raw_data; paired-ended samples only). The input FASTQ names come from the metadata R1/R2_file_accession columns, so the fastp invocation lives in a per-sample script rule (upstream: Snakemake input function)"
+input = ["{config.metadata}"]
+output = ["01_clean_data/{sample}_R1.fq", "01_clean_data/{sample}_R2.fq"]
+temp_output = ["01_clean_data/{sample}_R1.fq", "01_clean_data/{sample}_R2.fq"]
+when = "wildcard.runtype == 'paired-ended'"
+log = "log/{sample}_fastp.log"
+script = "scripts/clean_encode.py --metadata {config.metadata} --sample {sample} --mode paired"
+environment = { conda = "envs/preprocess.yaml" }
+localrule = true
+priority = 30
+
+[rules.resources]
+threads = 8  # upstream fastp_threads = 8
+
+[[rules]]
+name = "data_clean_single"
+description = "Trim and filter single-end reads with fastp (port of upstream data_clean_pair for one-file get_raw_data results — the upstream rule IndexErrors on {input[1]} for single-ended samples; single-ended samples only)"
+input = ["{config.metadata}"]
+output = ["01_clean_data/{sample}.fq"]
+temp_output = ["01_clean_data/{sample}.fq"]
+when = "wildcard.runtype == 'single-ended'"
+log = "log/{sample}_fastp.log"
+script = "scripts/clean_encode.py --metadata {config.metadata} --sample {sample} --mode single"
+environment = { conda = "envs/preprocess.yaml" }
+localrule = true
+priority = 30
+
+[rules.resources]
+threads = 8  # upstream fastp_threads = 8
+
+# ---------------------------------------------------------------------------
+# Alignment and quantification
+# ---------------------------------------------------------------------------
+
+[[rules]]
+name = "align_and_count"
+description = "STAR alignment with gene counts (upstream align_and_count; paired-ended samples)"
+input = ["01_clean_data/{sample}_R1.fq", "01_clean_data/{sample}_R2.fq"]
+output = ["02_read_align/{sample}_Aligned.sortedByCoord.out.bam", "02_read_align/{sample}_ReadsPerGene.out.tab"]
+temp_output = ["02_read_align/{sample}_Aligned.sortedByCoord.out.bam"]
+when = "wildcard.runtype == 'paired-ended'"
+log = "log/{sample}_Log.final.out"
+benchmark = "benchmark/STAR/{sample}.tsv"
+pre_exec = "mkdir -p log benchmark/STAR"
+environment = { conda = "envs/align.yaml" }
+# Wall-clock tripwire, same as main.oxoflow (see its align_and_count note).
+time_limit = "24h"
+priority = 40
+
+shell = """
+STAR \
+	--genomeDir {config.index} \
+	--runThreadN {threads} \
+	--readFilesIn {input[0]} {input[1]} \
+	--outFileNamePrefix 02_read_align/{sample}_ \
+	--outSAMtype BAM SortedByCoordinate \
+	--outBAMsortingThreadN 10 \
+    --limitBAMsortRAM $(({params.mem_mb} * 1000000)) \
+	--quantMode GeneCounts --sjdbGTFfile {config.GTF} \
+	--outTmpKeep None && \
+	mv 02_read_align/{sample}_Log.final.out log/{sample}_Log.final.out
+"""
+
+[rules.resources]
+threads = 20  # upstream star_threads = 20
+memory = "10G"  # upstream resources.mem_mb first-attempt value (10000)
+groups = { limit_align = 1 }
+
+[rules.params]
+mem_mb = 10000
+
+[[rules]]
+name = "align_and_count_single"
+description = "STAR alignment with gene counts, single-end input (port of upstream align_and_count for one-file get_raw_data results — the upstream rule declares fixed r1/r2 inputs; single-ended samples only)"
+input = ["01_clean_data/{sample}.fq"]
+output = ["02_read_align/{sample}_Aligned.sortedByCoord.out.bam", "02_read_align/{sample}_ReadsPerGene.out.tab"]
+temp_output = ["02_read_align/{sample}_Aligned.sortedByCoord.out.bam"]
+when = "wildcard.runtype == 'single-ended'"
+log = "log/{sample}_Log.final.out"
+benchmark = "benchmark/STAR/{sample}.tsv"
+pre_exec = "mkdir -p log benchmark/STAR"
+environment = { conda = "envs/align.yaml" }
+time_limit = "24h"
+priority = 40
+
+shell = """
+STAR \
+	--genomeDir {config.index} \
+	--runThreadN {threads} \
+	--readFilesIn {input[0]} \
+	--outFileNamePrefix 02_read_align/{sample}_ \
+	--outSAMtype BAM SortedByCoordinate \
+	--outBAMsortingThreadN 10 \
+    --limitBAMsortRAM $(({params.mem_mb} * 1000000)) \
+	--quantMode GeneCounts --sjdbGTFfile {config.GTF} \
+	--outTmpKeep None && \
+	mv 02_read_align/{sample}_Log.final.out log/{sample}_Log.final.out
+"""
+
+[rules.resources]
+threads = 20  # upstream star_threads = 20
+memory = "10G"  # upstream resources.mem_mb first-attempt value (10000)
+groups = { limit_align = 1 }
+
+[rules.params]
+mem_mb = 10000
+
+[[rules]]
+name = "build_bam_index"
+description = "Index BAM files with samtools (upstream build_bam_index)"
+input = ["02_read_align/{sample}_Aligned.sortedByCoord.out.bam"]
+output = ["02_read_align/{sample}_Aligned.sortedByCoord.out.bam.bai"]
+temp_output = ["02_read_align/{sample}_Aligned.sortedByCoord.out.bam.bai"]
+environment = { conda = "envs/align.yaml" }
+priority = 40
+
+shell = "samtools index -@ {threads} {input[0]}"
+
+[rules.resources]
+threads = 4
+
+[[rules]]
+name = "bamtobw"
+description = "Generate BPM-normalized bigWig signal tracks with bamCoverage (upstream bamtobw)"
+input = ["02_read_align/{sample}_Aligned.sortedByCoord.out.bam", "02_read_align/{sample}_Aligned.sortedByCoord.out.bam.bai"]
+output = ["04_bigwig/{sample}.bw"]
+environment = { conda = "envs/align.yaml" }
+priority = 45
+
+shell = """
+bamCoverage -p {threads} \
+	--binSize {params.bs} \
+	--effectiveGenomeSize {params.gs} \
+	--normalizeUsing {params.norm} \
+	-b {input[0]} -o {output[0]}
+"""
+
+[rules.resources]
+threads = 10
+
+[rules.params]
+bs = "50"
+gs = "2913022398"
+norm = "BPM"
+
+# ---------------------------------------------------------------------------
+# Count matrix and differential expression
+# ---------------------------------------------------------------------------
+
+[[rules]]
+name = "combine_count"
+description = "Merge per-sample ReadsPerGene tables into one count matrix (upstream combine_count run: block)"
+input = []
+expand_inputs = [
+    { pattern = "02_read_align/{sample}_ReadsPerGene.out.tab", variables = { sample = "config.samples_list" } }
+]
+output = ["03_merged_counts/{config.db_id}.tsv"]
+script = "scripts/combine_count.py --counts {input} --metadata {config.metadata} --output {output[0]}"
+environment = { conda = "envs/count.yaml" }
+priority = 35
+
+[[rules]]
+name = "DGE_analysis"
+description = "DESeq2 differential analysis with ashr shrinkage (upstream DGE_analysis, DESeq2_diff_encode.R); on_success carries the upstream onsuccess cleanup (rmtree 02_read_align) and optional email"
+input = ["03_merged_counts/{config.db_id}.tsv", "{config.metadata}"]
+output = ["05_DGE_analysis/{config.db_id}.Rds"]
+environment = { conda = "envs/deseq2.yaml" }
+priority = 35
+
+on_success = """
+rm -rf 02_read_align
+if [ "{config.mail}" = "true" ]; then
+    python scripts/send_mail.py "snakemake run successful" "snakemake run successful
+Following jobs fininished:
+ {config.db_id}.Rds" {config.sender} {config.sender_password} {config.mail_to}
+fi
+"""
+
+shell = "Rscript scripts/DESeq2_diff_encode.R \"{input[0]}\" \"{input[1]}\" \"{output[0]}\""

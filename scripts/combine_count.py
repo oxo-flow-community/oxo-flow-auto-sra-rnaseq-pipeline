@@ -19,6 +19,17 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
+    # No count files usually means the sample groups are empty (a
+    # mis-configured workflow) — fail with a hint instead of an IndexError.
+    if not args.counts:
+        print(
+            "error: no per-sample count files matched (--counts is empty); "
+            "declare samples in [[sample_groups]] and keep them in sync with "
+            "the GSM column of the metadata file",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     # Fail fast when [config] db_id drifts from the metadata file name
     # (upstream derives DB_ID from the metadata at load time).
     expected_db_id = os.path.basename(args.metadata).replace(".txt", "")
