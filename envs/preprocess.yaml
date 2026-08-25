@@ -1,8 +1,13 @@
 # Upstream rules/envs/preprocess.yaml, with unpinned fastp resolved from
 # bioconda on 2026-08-15 (see README fidelity table).
+# pandas added for the ENCODE clean driver (scripts/clean_encode.py):
+# upstream did its pandas work in a Snakemake input function, which
+# oxo-flow cannot run — the port moves it into a per-sample script rule
+# running under this env (main.oxoflow's shell fastp rules are unaffected).
 name: preprocess
 channels:
   - conda-forge
   - bioconda
 dependencies:
   - fastp =1.3.6
+  - pandas =3.0.5

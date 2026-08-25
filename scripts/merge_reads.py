@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
-"""Port of the upstream merge_R1_data / merge_R2_data rules and their
-get_merged_input_data_R1/R2 input functions.
+"""Port of the upstream merge_R1_data / merge_R2_data / merge_data rules and
+their get_merged_input_data_R1/R2 input functions.
 
 Concatenates the per-SRR FASTQ files of one sample in metadata order
 (upstream shell: `cat {input} > {output}`).
+
+--read 1/2 merges paired-end reads (sra/{srr}_1.fastq / _2.fastq into
+00_raw_data/{sample}_R1.fq / _R2.fq); --read 0 merges single-end reads
+(sra/{srr}.fastq into 00_raw_data/{sample}.fq), the upstream merge_data
+rule.
 """
 
 import argparse
@@ -20,7 +25,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--metadata", required=True)
     p.add_argument("--separator", default=",")
     p.add_argument("--sample", required=True)
-    p.add_argument("--read", required=True, choices=["1", "2"])
+    p.add_argument("--read", required=True, choices=["0", "1", "2"],
+                   help="0 = single-end merge (upstream merge_data), 1/2 = paired-end (upstream merge_R1/R2_data)")
     p.add_argument("--output", required=True)
     return p.parse_args()
 
@@ -34,8 +40,40 @@ def main() -> None:
         print(f"error: sample {args.sample} not found in metadata", file=sys.stderr)
         sys.exit(1)
 
+    # Fail fast when the sample's metadata `paired` column contradicts the
+    # rule mode. The workflow routes samples by [[sample_groups]] metadata
+    # (paired = "PAIRED" / "SINGLE"); a sample declared in the wrong group
+    # would otherwise silently merge nothing. Values other than PAIRED /
+    # SINGLE are rejected like upstream run.py validate_metadata_file.
+    paired = str(rows["paired"].tolist()[0]).strip().upper()
+    if paired not in ("PAIRED", "SINGLE"):
+        print(
+            f"error: sample {args.sample} has paired='{paired}' in the metadata; "
+            f"expected PAIRED or SINGLE",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    is_single = args.read == "0"
+    if is_single and paired == "PAIRED":
+        print(
+            f"error: sample {args.sample} is PAIRED in the metadata but this is the "
+            f"single-end merge (--read 0); move it to the 'single' sample group",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if not is_single and paired == "SINGLE":
+        print(
+            f"error: sample {args.sample} is SINGLE in the metadata but this is the "
+            f"paired-end merge (--read {args.read}); move it to the 'cohort' sample group",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     srr_ids = rows["SRR"].tolist()[0].split(args.separator)
-    inputs = [f"sra/{srr}_{args.read}.fastq" for srr in srr_ids]
+    if is_single:
+        inputs = [f"sra/{srr}.fastq" for srr in srr_ids]
+    else:
+        inputs = [f"sra/{srr}_{args.read}.fastq" for srr in srr_ids]
 
     missing = [f for f in inputs if not os.path.exists(f)]
     if missing:

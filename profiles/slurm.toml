@@ -1,0 +1,35 @@
+# oxo-flow execution profile for SLURM clusters — port of the upstream
+# slurm/config.yaml (Snakemake SLURM profile).
+#
+# Upstream mapping:
+#   executor: slurm        -> backend = "slurm"
+#   jobs: 100              -> max_submitted = 100
+#   default-resources:
+#     runtime=120 (min)    -> walltime = "2h"
+#     mem_mb=8000          -> not expressible: oxo-flow [cluster] has no
+#                             per-job default memory; each rule carries its
+#                             own [rules.resources] memory instead
+#   set-threads:           -> per-rule threads are workflow literals in
+#                             main.oxoflow / main_encode.oxoflow (same
+#                             values: align_and_count 20, bamtobw 8 vs 10,
+#                             combine_count/DGE_analysis 1); nothing to do
+#   set-resources:
+#     align_and_count:mem_mb=64000 -> NOT ported: upstream bumps the
+#                             align rule from its 10000 first-attempt value
+#                             to 64G on the cluster only; oxo-flow cannot
+#                             carry per-rule resource overrides in a
+#                             profile, so the pinned 10G applies on the
+#                             cluster too (documented in the workflow
+#                             fidelity notes)
+#     bamtobw:mem_mb=16000,
+#     bamtobw:runtime=50   -> same: no per-rule override mechanism
+#
+# Activate with:
+#   oxo-flow run main.oxoflow --profile slurm metadata=/path/to/your.tsv ...
+#   oxo-flow run main_encode.oxoflow --profile slurm ...
+# Without --profile the workflows run locally ([cluster] is inert).
+
+[cluster]
+backend = "slurm"
+walltime = "2h"
+max_submitted = 100
