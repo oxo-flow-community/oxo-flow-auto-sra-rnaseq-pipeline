@@ -52,11 +52,12 @@
 #   memory "10G").
 # - Snakemake workflow-level onsuccess (rmtree 02_read_align + email) is
 #   attached to the final rule DGE_analysis as on_success.
-# - Snakemake workflow-level onerror email is NOT ported: oxo-flow has
-#   per-rule on_failure hooks only, and a failure in an earlier rule never
-#   reaches the final rule's hook. The engine ships a [webhook] section
-#   with a workflow_failed event, but nothing in the engine calls it yet
-#   (dead surface in this build) — see README fidelity table.
+# - Snakemake workflow-level onerror email is ported as the [workflow]
+#   on_error hook (fires on engine >= 0.17.0; older engines ignore the
+#   unknown key): the same scripts/send_mail.py call as on_success, with
+#   subject "snakemake run failed" and the run counters + workflow name
+#   in the body. Best-effort like every hook — a failure to notify is a
+#   warning, never a run-status change. No-op unless mail = true.
 # - --restart-times 3 comes from the upstream batch runner run.py — ported
 #   as scripts/run_batch.py (drives `oxo-flow run -r 3` per metadata file).
 #
@@ -76,6 +77,20 @@ name = "oxo-flow-auto-sra-rnaseq-pipeline"
 version = "1.0.0"
 description = "SRA-powered RNA-seq from local .sra archives to differential expression: fasterq-dump, fastp trimming, STAR alignment with gene counts, bigWig signal tracks, merged count matrix, DESeq2 with ashr shrinkage — oxo-flow port of xuzhougeng/auto_sra_rnaseq_pipeline"
 author = "oxo-flow-community"
+# Failure email (upstream Snakefile onerror). Engine >= 0.17.0 runs this
+# shell once in the workflow root when the run reaches a terminal state
+# with at least one failed rule; older engines ignore the unknown key.
+# Rendered with {config.*} plus {succeeded}/{failed}/{skipped}/{workdir}.
+# Guarded by mail (default false = no-op); best-effort, never changes the
+# run's exit status. Uses the same scripts/send_mail.py as on_success.
+on_error = """
+if [ "{config.mail}" = "true" ]; then
+    python scripts/send_mail.py "snakemake run failed" "snakemake run failed
+Workflow: oxo-flow-auto-sra-rnaseq-pipeline ({config.db_id})
+succeeded: {succeeded}, failed: {failed}, skipped: {skipped}
+workdir: {workdir}" {config.sender} {config.sender_password} {config.mail_to}
+fi
+"""
 
 [config]
 # STAR index dir and GTF (upstream keys index / GTF).
@@ -92,7 +107,8 @@ sra_data_path = "sra"
 srr_separator = ","
 # DB_ID — upstream: basename(metadata).replace(".txt", "").
 db_id = "D21122"
-# Email notification (upstream onsuccess). Keep off unless SMTP is configured.
+# Email notification (upstream onsuccess + onerror). Keep off unless SMTP
+# is configured — the [workflow] on_error hook reuses these same keys.
 mail = false
 sender = ""
 sender_password = ""
