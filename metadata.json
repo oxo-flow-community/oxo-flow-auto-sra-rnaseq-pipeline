@@ -36,7 +36,6 @@
     "scripts/update_json.py — copied byte-identical (external-orchestration tracker)"
   ],
   "excluded": [
-    "snakemake onerror email — oxo-flow has per-rule on_failure hooks only, no workflow-level error hook (a failure in an earlier rule never reaches the final rule's hook); engine [webhook] workflow_failed event exists but has no callers in this build — remediation: engine-side workflow-level failure hook, the mail itself exists (send_mail.py)",
     "pigz_threads config key — merge rules use plain cat (pigz pipe commented out upstream)"
   ],
   "rule_count": 13,
@@ -53,7 +52,7 @@
   ],
   "description": "Automated RNA-seq analysis from locally downloaded SRA archives to differential expression results: verify and symlink .sra files, fasterq-dump conversion to FASTQ, read merging across multiple SRR runs per sample, fastp trimming, STAR alignment with gene counts, BAM indexing, BPM-normalized bigWig signal tracks, a merged count matrix, and DESeq2 differential analysis with ashr shrinkage. Every tool is pinned to an exact conda version for reproducibility. Paired- and single-end samples are routed per sample via metadata (sample-group metadata + wildcard-scoped when predicates), and a second entry point (main_encode.oxoflow) covers the upstream ENCODE execution path.",
   "installation": {
-    "engine": "oxo-flow >= 0.15.0",
+    "engine": "oxo-flow >= 0.15.0 (failure-email hook [workflow] on_error fires on >= 0.17.0; older engines ignore the unknown key)",
     "toolchain": "conda envs — pinned",
     "requirements": [
       "Reference data: STAR index dir and GTF (config index / GTF, e.g. GRCh38)",
