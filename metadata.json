@@ -35,9 +35,7 @@
     "config.yaml bark/feishu flags — scripts/notify.py (feishu verbatim; bark fixed from upstream no-op)",
     "scripts/update_json.py — copied byte-identical (external-orchestration tracker)"
   ],
-  "excluded": [
-    "pigz_threads config key — merge rules use plain cat (pigz pipe commented out upstream)"
-  ],
+  "excluded": [],
   "rule_count": 13,
   "tools": [
     "sra-tools",
