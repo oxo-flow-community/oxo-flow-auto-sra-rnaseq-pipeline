@@ -180,8 +180,8 @@ log = "log/{sample}_Log.final.out"
 benchmark = "benchmark/STAR/{sample}.tsv"
 pre_exec = "mkdir -p log benchmark/STAR"
 environment = { conda = "envs/align.yaml" }
-# Wall-clock tripwire, same as main.oxoflow (see its align_and_count note).
-time_limit = "24h"
+# Wall-clock tripwire, same as main.oxoflow (see its align_and_count note):
+# set as time_limit in [rules.resources] below.
 priority = 40
 
 shell = """
@@ -202,6 +202,7 @@ STAR \
 threads = 20  # upstream star_threads = 20
 memory = "10G"  # upstream resources.mem_mb first-attempt value (10000)
 groups = { limit_align = 1 }
+time_limit = "24h"  # wall-clock tripwire, same as main.oxoflow align_and_count
 
 [rules.params]
 mem_mb = 10000
@@ -217,7 +218,6 @@ log = "log/{sample}_Log.final.out"
 benchmark = "benchmark/STAR/{sample}.tsv"
 pre_exec = "mkdir -p log benchmark/STAR"
 environment = { conda = "envs/align.yaml" }
-time_limit = "24h"
 priority = 40
 
 shell = """
@@ -238,6 +238,7 @@ STAR \
 threads = 20  # upstream star_threads = 20
 memory = "10G"  # upstream resources.mem_mb first-attempt value (10000)
 groups = { limit_align = 1 }
+time_limit = "24h"  # wall-clock tripwire, same as main.oxoflow align_and_count
 
 [rules.params]
 mem_mb = 10000
