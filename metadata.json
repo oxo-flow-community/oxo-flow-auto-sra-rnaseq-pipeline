@@ -13,7 +13,17 @@
   },
   "created": "2026-08-15",
   "domain": "transcriptomics",
-  "tags": ["rna-seq", "sra", "fasterq-dump", "fastp", "star", "deseq2", "differential-expression", "bigwig", "encode"],
+  "tags": [
+    "rna-seq",
+    "sra",
+    "fasterq-dump",
+    "fastp",
+    "star",
+    "deseq2",
+    "differential-expression",
+    "bigwig",
+    "encode"
+  ],
   "scope": [
     "get_sra",
     "data_conversion_pair",
@@ -33,10 +43,16 @@
     "run.py — scripts/run_batch.py (metadata validation, SRA checks, --restart-times 3, finished/failed dirs, notifications)",
     "slurm/config.yaml — profiles/slurm.toml (oxo-flow [cluster], opt-in via --profile slurm)",
     "config.yaml bark/feishu flags — scripts/notify.py (feishu verbatim; bark fixed from upstream no-op)",
-    "scripts/update_json.py — copied byte-identical (external-orchestration tracker)"
+    "scripts/update_json.py — copied byte-identical (external-orchestration tracker)",
+    "align_and_count_single",
+    "align_and_count_single",
+    "data_clean_single",
+    "data_clean_single",
+    "merge_data",
+    "sra_dump"
   ],
   "excluded": [],
-  "rule_count": 13,
+  "rule_count": 21,
   "tools": [
     "sra-tools",
     "fastp",
