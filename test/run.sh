@@ -15,8 +15,10 @@ check_wf() {
     "$OXO" lint "$wf"
 
     echo "==> dry-run $wf with default config"
+    # Engine headline wording changed in oxo-flow 0.20.1 (Traitome/oxo-flow#432):
+    # "would execute" became "Plan: would run: N | skip: M | ...". Accept either.
     "$OXO" dry-run "$wf" > /tmp/oxo-dryrun-$$.txt 2>&1
-    grep -q "would execute" /tmp/oxo-dryrun-$$.txt
+    grep -qE "would (execute|run)" /tmp/oxo-dryrun-$$.txt
 
     echo "==> debug $wf: expanded commands contain no literal {wildcards}"
     "$OXO" debug "$wf" | grep -q '{sample}' && { echo "unexpanded wildcards in debug output"; exit 1; } || true
