@@ -30,15 +30,16 @@ exprSet <- data.table::fread(countspath, data.table = F)
 rownames(exprSet) <- exprSet[, 1]
 exprSet <- exprSet[, -1]
 keep <- grepl("ENSG", rownames(exprSet))
-exprSet <- exprSet[keep, ]
-if (nrow(exprSet) == 0) {
+if (!any(keep)) {
+    dropped <- rownames(exprSet)[!keep]
     stop("ENSG filter kept 0 of ", length(keep), " genes. ",
          "This DGE script expects Ensembl gene IDs (prefix ENSG). ",
          "Observed ID examples: ",
-         paste(utils::head(rownames(exprSet[!keep, , drop = FALSE]), 3), collapse = ", "),
+         paste(utils::head(dropped, 3), collapse = ", "),
          ". For non-ENSG organisms (e.g. yeast SGD IDs, mouse ENSMUSG) ",
          "remove or adapt the ENSG filter before running the DGE step.")
 }
+exprSet <- exprSet[keep, ]
 
 ### 2.metadata
 metadata <- data.table::fread(metapath,data.table = F)
