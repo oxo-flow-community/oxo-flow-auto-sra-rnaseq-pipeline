@@ -45,7 +45,11 @@ git clone https://github.com/oxo-flow-community/oxo-flow-auto-sra-rnaseq-pipelin
 
 - **Reference data**: a STAR index directory (`config.index`, e.g.
   `/data/reference/genome/GRCh38/STAR`) and a GTF matching the STAR index
-  (`config.GTF`).
+  (`config.GTF`). `main_encode.oxoflow` ships with GRCh38 paths as
+  placeholders — replace both with an index/GTF **matching your metadata's
+  organism** before running (the bundled fixtures are yeast, so a live
+  ENCODE test needs the config edited accordingly; DGE additionally
+  expects Ensembl ENSG gene IDs — see the Fidelity table).
 - **Input data**: pre-downloaded SRA archives at
   `<sra_data_path>/<SRR>/<SRR>.sra` (default `sra/…`), and a metadata TSV
   (one row per sample) with the columns:
@@ -104,6 +108,15 @@ oxo-flow run main_encode.oxoflow -j 8
 
 Keep its `[[sample_groups]]` (`paired`/`single`) in sync with the
 metadata `sample` and `runtype` columns.
+Keep its `[[sample_groups]]` (`paired`/`single`) in sync with the
+metadata `sample` and `runtype` columns.
+
+The `R1_file_accession`/`R2_file_accession` values must be **bare file
+stems without the `.fastq.gz` suffix** — `scripts/clean_encode.py` looks
+for `00_raw_data/<accession>.fastq.gz` and appends the extension itself
+(a value like `DRR392088_1.fastq.gz` fails with
+`input FASTQ not found: 00_raw_data/DRR392088_1.fastq.gz.fastq.gz`).
+Leave `R2_file_accession` empty for single-ended rows.
 
 ### Batch mode (upstream run.py)
 
